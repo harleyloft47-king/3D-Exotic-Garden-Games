@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Exotic Garden</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;font-family:system-ui;background:#87c96b}canvas{display:block}#hud{position:fixed;top:14px;left:14px;background:#fffde8e8;padding:12px 16px;border-radius:16px;box-shadow:0 5px 18px #0003;max-width:330px}#money{font-weight:800;font-size:20px}.hint{font-size:13px;margin-top:6px}#msg{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#20261ee8;color:white;padding:12px 18px;border-radius:14px;text-align:center;min-width:300px}button{border:0;border-radius:10px;padding:8px 11px;margin:5px 3px 0 0;cursor:pointer;font-weight:700;background:#e9d78a}button:hover{filter:brightness(.95)}</style>
+</head>
+<body>
+<div id="hud"><div id="money">$0</div><div>Seeds: <b id="seeds">0</b> · Harvested: <b id="harvested">0</b></div><div>Greenhouse: <b id="cap">2</b>/50 slots</div><div class="hint">WASD / arrows: move · E: interact</div><button onclick="interact()">Interact (E)</button><button onclick="waterPlant()">Water</button></div>
+<div id="msg">Walk to the seed shop and claim your free Venus flytrap seed.</div>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9bd7ef);scene.fog=new THREE.Fog(0x9bd7ef,35,85);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,200);camera.position.set(0,8,13);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;document.body.prepend(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff,0x50643b,2));const sun=new THREE.DirectionalLight(0xfff4d6,2.3);sun.position.set(10,20,8);sun.castShadow=true;scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshStandardMaterial({color:0x78b95b}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+function box(x,y,z,w,h,d,c){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color:c}));m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;scene.add(m);return m}
+// Greenhouse
+box(0,1.5,-7,12,.25,9,0xc7e6cf);for(const x of[-6,6]) box(x,2.6,-7,.18,5,9,0x557d63);for(const z of[-11.5,-2.5]) box(0,2.6,z,12,5,.18,0x557d63);
+const roof=new THREE.Mesh(new THREE.BoxGeometry(12,.18,9),new THREE.MeshStandardMaterial({color:0xbce5df,transparent:true,opacity:.5}));roof.position.set(0,5.1,-7);scene.add(roof);
+// Shop + hut
+box(-10,1.5,5,5,3,4,0xe8b86d);box(10,1.5,5,5,3,4,0xb98055);box(-10,3.4,5,6,.5,5,0x9a5b3d);box(10,3.4,5,6,.5,5,0x76503c);
+// signs
+function sign(text,x,z){const cv=document.createElement('canvas');cv.width=512;cv.height=128;const c=cv.getContext('2d');c.fillStyle='#fff7d5';c.fillRect(0,0,512,128);c.fillStyle='#33291e';c.font='bold 46px system-ui';c.textAlign='center';c.fillText(text,256,78);const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv)}));sp.position.set(x,3.2,z);sp.scale.set(5,1.25,1);scene.add(sp)}sign('SEED SHOP',-10,2.9);sign('POT & SELL',10,2.9);
+// Player
+const player=new THREE.Group();const body=new THREE.Mesh(new THREE.CapsuleGeometry(.45,.9,5,10),new THREE.MeshStandardMaterial({color:0x3c6b43}));body.position.y=1;player.add(body);player.position.set(0,0,7);scene.add(player);
+// Grow plots
+const plots=[];for(let i=0;i<10;i++){const x=-4.5+(i%5)*2.25,z=-8.5+Math.floor(i/5)*3;const p=new THREE.Mesh(new THREE.CylinderGeometry(.75,.85,.35,16),new THREE.MeshStandardMaterial({color:i<2?0x69472f:0x777777}));p.position.set(x,.18,z);scene.add(p);plots.push({mesh:p,plant:null,unlocked:i<2})}
+let money=0,seeds=0,harvested=0,capacity=2,freeSeed=true;const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(e.key.toLowerCase()==='e')interact()});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+const msg=t=>document.querySelector('#msg').textContent=t;function ui(){moneyEl.textContent='$'+money;seedsEl.textContent=seeds;harvestedEl.textContent=harvested;capEl.textContent=capacity}const moneyEl=document.querySelector('#money'),seedsEl=document.querySelector('#seeds'),harvestedEl=document.querySelector('#harvested'),capEl=document.querySelector('#cap');
+function near(x,z,r=3){return Math.hypot(player.position.x-x,player.position.z-z)<r}
+function makeFlytrap(plot){const g=new THREE.Group();const stem=new THREE.Mesh(new THREE.CylinderGeometry(.08,.12,.7,8),new THREE.MeshStandardMaterial({color:0x3d9b46}));stem.position.y=.55;g.add(stem);for(let i=0;i<4;i++){const leaf=new THREE.Mesh(new THREE.SphereGeometry(.25,10,8),new THREE.MeshStandardMaterial({color:0x72c94d}));leaf.scale.set(1.8,.25,.8);leaf.position.set(Math.cos(i*1.57)*.35,.75,Math.sin(i*1.57)*.35);g.add(leaf)}g.position.copy(plot.mesh.position);g.scale.setScalar(.25);scene.add(g);return{group:g,stage:0,water:0,ready:false}}
+window.interact=()=>{if(near(-10,5)){if(freeSeed){seeds++;freeSeed=false;msg('Free Venus flytrap seed claimed! Head into the greenhouse.')}else if(money>=15){money-=15;seeds++;msg('Bought a Venus flytrap seed for $15.')}else msg('Seeds cost $15. Sell a plant to earn more.');ui();return}for(const p of plots){if(p.unlocked&&near(p.mesh.position.x,p.mesh.position.z,1.8)){if(!p.plant&&seeds>0){seeds--;p.plant=makeFlytrap(p);msg('Venus flytrap planted. Water it to help it grow.');ui();return}if(p.plant?.ready){scene.remove(p.plant.group);p.plant=null;harvested++;msg('Harvested! Take the plant to the Pot & Sell hut.');ui();return}}}if(near(10,5)){if(harvested>0){harvested--;money+=40;msg('A customer bought your potted Venus flytrap for $40!');ui();return}const next=capacity===2?[5,60]:capacity===5?[10,140]:capacity===10?[20,300]:capacity===20?[35,650]:capacity===35?[50,1200]:null;if(next&&money>=next[1]){money-=next[1];capacity=next[0];plots.forEach((p,i)=>{if(i<Math.min(capacity,plots.length)){p.unlocked=true;p.mesh.material.color.set(0x69472f)}});msg('Greenhouse upgraded to '+capacity+' plant capacity!');ui();return}msg(next?'Sell plants here. Next greenhouse upgrade: '+next[0]+' slots for $'+next[1]+'.':'Maximum greenhouse capacity reached!');return}msg('Move closer to the seed shop, a grow plot, or the sales hut.');};
+window.waterPlant=()=>{let best=null,dist=99;for(const p of plots){if(p.plant){const d=Math.hypot(player.position.x-p.mesh.position.x,player.position.z-p.mesh.position.z);if(d<dist){dist=d;best=p}}}if(!best||dist>2){msg('Stand beside a planted Venus flytrap to water it.');return}const pl=best.plant;if(pl.ready){msg('This Venus flytrap is ready to harvest. Press E beside it.');return}pl.water++;pl.stage++;pl.group.scale.setScalar(.25+pl.stage*.18);if(pl.stage>=5){pl.ready=true;pl.group.scale.setScalar(1.15);msg('Your Venus flytrap is mature and ready to harvest!')}else msg(['Seed watered. A tiny sprout is forming!','Sprout stage!','Juvenile plant! Small traps are forming.','Young traps are opening!','Almost mature!'][pl.stage-1]||'Growing...')};
+let last=performance.now();function loop(now){const dt=Math.min((now-last)/1000,.04);last=now;let dx=0,dz=0;if(keys.w||keys.arrowup)dz-=1;if(keys.s||keys.arrowdown)dz+=1;if(keys.a||keys.arrowleft)dx-=1;if(keys.d||keys.arrowright)dx+=1;const l=Math.hypot(dx,dz)||1;player.position.x+=dx/l*5*dt;player.position.z+=dz/l*5*dt;player.position.x=THREE.MathUtils.clamp(player.position.x,-18,18);player.position.z=THREE.MathUtils.clamp(player.position.z,-15,15);const target=new THREE.Vector3(player.position.x,7,player.position.z+10);camera.position.lerp(target,.06);camera.lookAt(player.position.x,1,player.position.z-2);renderer.render(scene,camera);requestAnimationFrame(loop)}requestAnimationFrame(loop);ui();addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+</script>
+</body></html>
